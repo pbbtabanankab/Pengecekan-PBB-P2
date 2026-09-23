@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pengecekan PBB-P2</title>
+<style>
+  :root{
+    --merah:#b3242f; --merah-tua:#8c1c25; --merah-terang:#e2707a; --merah-muda:#fbeef0;
+    --bg:#fbfafa; --card:#ffffff; --border:#f0e6e6;
+    --text:#2a2325; --muted:#8c8082; --danger:#b3242f; --ok:#1a7f37;
+    --radius:14px; --radius-lg:30px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 16px 60px;}
+  header.top{background:linear-gradient(135deg, var(--merah) 0%, var(--merah-terang) 65%, #fdf3f4 100%);
+    color:#fff;padding:32px 24px 76px;text-align:center;border-radius:0 0 var(--radius-lg) var(--radius-lg);
+    box-shadow:0 12px 28px rgba(179,36,47,.16);}
+  header.top h1{margin:0;font-size:21px;font-weight:700;letter-spacing:.02em;}
+  header.top p{margin:6px 0 0;font-size:13px;opacity:.92;}
+
+  /* ===== Beranda / login ===== */
+  .home-container{background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);
+    box-shadow:0 10px 30px rgba(0,0,0,.05);padding:36px 24px;margin-top:-46px;position:relative;z-index:2;}
+  .home-container .home-title{text-align:center;color:var(--merah-tua);font-size:14px;font-weight:700;
+    letter-spacing:.03em;text-transform:uppercase;margin:0 0 26px;}
+  .home-cards{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;}
+  .home-card{background:#fff;border:1px solid var(--border);border-radius:16px;
+    width:230px;padding:26px 18px;text-align:center;cursor:pointer;transition:.15s;}
+  .home-card:hover{transform:translateY(-2px);border-color:var(--merah-terang);background:var(--merah-muda);}
+  .home-card h3{margin:12px 0 4px;font-size:17px;color:var(--merah-tua);}
+  .home-card p{margin:0;color:var(--muted);font-size:13px;}
+  .home-card .tag{display:inline-block;margin-top:14px;font-size:11.5px;font-weight:700;padding:4px 12px;
+    border-radius:20px;color:var(--merah-tua);background:var(--merah-muda);}
+  .icon-circle{width:48px;height:48px;border-radius:50%;margin:0 auto;display:flex;align-items:center;
+    justify-content:center;font-size:20px;color:var(--merah);background:var(--merah-muda);}
+
+  /* ===== Modal ===== */
+  .overlay{position:fixed;inset:0;background:rgba(60,20,22,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .overlay.show{display:flex;}
+  .modal{background:#fff;border-radius:var(--radius);padding:24px;width:100%;max-width:380px;position:relative;border-top:5px solid var(--merah);}
+  .modal h2{margin:0 0 4px;font-size:18px;color:var(--merah-tua);}
+  .modal .sub{color:var(--muted);font-size:13px;margin-bottom:16px;}
+  label{display:block;font-size:13px;font-weight:600;margin:12px 0 5px;}
+  input[type=text],input[type=password],textarea,select{
+    width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;font-size:14px;background:#fff;color:var(--text);
+  }
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--merah);}
+  textarea{resize:vertical;min-height:60px;}
+  .checkbox-row{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;color:var(--muted);}
+  .checkbox-row input{width:auto;}
+  .btn{border:none;border-radius:7px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer;color:#fff;background:var(--merah);}
+  .btn:hover{background:var(--merah-tua);}
+  .btn.block{width:100%;margin-top:16px;}
+  .btn.secondary{background:#f1e9e9;color:var(--merah-tua);}
+  .btn.secondary:hover{background:#e7d7d7;}
+  .btn[disabled]{opacity:.6;cursor:default;}
+  .error-msg{color:var(--danger);font-size:13px;margin-top:10px;display:none;}
+  .ok-msg{color:var(--ok);font-size:13px;margin-top:10px;display:none;}
+  .close-x{position:absolute;top:14px;right:16px;cursor:pointer;color:var(--muted);font-size:20px;background:none;border:none;}
+
+  /* ===== App shell setelah login ===== */
+  .app-header{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--border);
+    border-radius:var(--radius);padding:16px 20px;margin-bottom:22px;flex-wrap:wrap;gap:10px;box-shadow:0 2px 10px rgba(0,0,0,.03);}
+  .app-header .role-badge{font-size:11.5px;font-weight:700;color:var(--merah-tua);padding:4px 10px;border-radius:20px;margin-left:8px;background:var(--merah-muda);}
+  .app-header .who{font-size:15px;font-weight:600;}
+  .app-header .actions button{margin-left:8px;}
+  .hidden{display:none !important;}
+
+  .card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:20px;box-shadow:0 2px 10px rgba(0,0,0,.03);}
+  .card h2{margin-top:0;font-size:15.5px;color:var(--merah-tua);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:560px){.grid2{grid-template-columns:1fr;}}
+
+  .status-toggle{display:flex;gap:10px;margin-top:6px;}
+  .status-toggle button{flex:1;padding:10px;border-radius:7px;border:2px solid var(--border);background:#fff;font-weight:600;cursor:pointer;color:var(--muted);}
+  .status-toggle button.sesuai.active{border-color:var(--ok);color:var(--ok);background:#eafaf0;}
+  .status-toggle button.tidak.active{border-color:var(--danger);color:var(--danger);background:var(--merah-muda);}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;}
+  th{background:#fff;border-bottom:2px solid var(--merah-muda);font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);}
+  .badge{padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;}
+  .badge.Sesuai{background:#eafaf0;color:var(--ok);}
+  .badge.Tidak.Sesuai{background:var(--merah-muda);color:var(--danger);}
+  .table-wrap{overflow-x:auto;}
+  .empty{color:var(--muted);font-size:13px;padding:16px 0;text-align:center;}
+  .search-row{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+  .search-row input{flex:1;min-width:180px;}
+
+  .search-row select{width:auto;flex:0 0 auto;}
+  .summary-row{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:2px 0 14px;padding-bottom:10px;border-bottom:1px dashed var(--border);}
+  .summary-row b{color:var(--text);font-size:13px;}
+  .summary-row .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;}
+  .summary-row .dot.ok{background:var(--ok);}
+  .summary-row .dot.no{background:var(--danger);}
+  .pagination-row{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:16px;font-size:13px;color:var(--muted);}
+  .pagination-row button{padding:6px 14px;font-size:13px;}
+  .pagination-row button[disabled]{opacity:.4;cursor:default;}
+
+  /* ===== Modal detail (surat pernyataan) ===== */
+  .modal.wide{max-width:560px;}
+  .surat{border:1px solid #e2e2e2;border-radius:10px;padding:28px 30px;font-size:14px;line-height:1.8;background:#fff;color:#222;}
+  .surat-kop{text-align:center;border-bottom:2px solid var(--merah);padding-bottom:14px;margin-bottom:18px;}
+  .surat-kop-title{font-size:15px;font-weight:700;letter-spacing:.02em;color:var(--merah-tua);text-transform:uppercase;}
+  .surat-kop-sub{font-size:12px;color:var(--muted);margin-top:4px;}
+  .surat-intro{margin:0 0 16px;}
+  .surat-table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px;}
+  .surat-table td{padding:5px 0;border:none;vertical-align:top;}
+  .surat-table td.label{width:180px;color:var(--muted);}
+  .surat-table td.sep{width:14px;color:var(--muted);}
+  .surat-closing{margin:0 0 6px;font-size:13.5px;color:#444;}
+  .surat .status-ok{color:var(--ok);}
+  .surat .status-no{color:var(--danger);}
+  .surat .ttd{margin-top:36px;text-align:right;}
+  .surat .ttd .space{height:56px;}
+
+  @media print{
+    body *{visibility:hidden;}
+    #printArea, #printArea *{visibility:visible;}
+    #printArea{position:absolute;top:0;left:0;width:100%;}
+    .surat{border:none;padding:10px 6px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>Sistem Pengecekan PBB-P2</h1>
+    <p>Pemanfaatan Informasi Bersama PBB &amp; BPHTB — Kabupaten Tabanan</p>
+  </header>
+
+  <!-- ===================== BERANDA ===================== -->
+  <div id="homeView">
+    <div class="home-container">
+      <p class="home-title">Silakan pilih jenis login</p>
+      <div class="home-cards">
+        <div class="home-card" onclick="openLogin('PBB')">
+          <div class="icon-circle">📋</div>
+          <h3>LOGIN PBB</h3>
+          <p>Menginput hasil pengecekan</p>
+          <span class="tag">Petugas PBB</span>
+        </div>
+        <div class="home-card" onclick="openLogin('BPHTB')">
+          <div class="icon-circle">🔍</div>
+          <h3>LOGIN BPHTB</h3>
+          <p>Melihat hasil pengecekan</p>
+          <span class="tag">Petugas BPHTB</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== APP PBB ===================== -->
+  <div id="pbbView" class="hidden">
+    <div class="app-header">
+      <div class="who">👤 <span id="pbbNama"></span><span class="role-badge">PETUGAS PBB</span></div>
+      <div class="actions">
+        <button class="btn secondary" onclick="openGantiPassword()">Ganti Password</button>
+        <button class="btn secondary" onclick="doLogout()">Keluar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Input Hasil Pengecekan PBB</h2>
+      <div class="grid2">
+        <div>
+          <label>NOP</label>
+          <input type="text" id="f_nop" placeholder="51.02.030.004.005.0001.0" inputmode="numeric" maxlength="24" oninput="this.value=formatNOP(this.value)">
+          <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">Cukup ketik angkanya, titik akan muncul otomatis</div>
+        </div>
+        <div>
+          <label>No. Legalitas</label>
+          <input type="text" id="f_legalitas" placeholder="Cth: SHM 123 / NIB 456">
+        </div>
+      </div>
+      <div class="grid2">
+        <div>
+          <label>Desa</label>
+          <input type="text" id="f_desa" placeholder="Nama Desa/Kelurahan">
+        </div>
+        <div>
+          <label>Status</label>
+          <div class="status-toggle">
+            <button type="button" class="sesuai" id="btnSesuai" onclick="setStatus('Sesuai')">Sesuai</button>
+            <button type="button" class="tidak" id="btnTidak" onclick="setStatus('Tidak Sesuai')">Tidak Sesuai</button>
+          </div>
+        </div>
+      </div>
+      <label>Catatan <span style="font-weight:400;color:var(--muted);">(opsional)</span></label>
+      <textarea id="f_catatan" placeholder="Catatan tambahan bila ada"></textarea>
+
+      <div id="pbbError" class="error-msg"></div>
+      <div id="pbbOk" class="ok-msg"></div>
+      <button class="btn block" onclick="submitData()" id="btnSubmit">Simpan Data</button>
+    </div>
+
+    <div class="card">
+      <h2>Data yang Sudah Saya Input</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Tanggal</th><th>NOP</th><th>No. Legalitas</th><th>Desa</th><th>Status</th><th>Catatan</th></tr>
+          </thead>
+          <tbody id="myDataBody"></tbody>
+        </table>
+        <div class="empty hidden" id="myDataEmpty">Belum ada data yang diinput.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== APP BPHTB ===================== -->
+  <div id="bphtbView" class="hidden">
+    <div class="app-header">
+      <div class="who">👤 <span id="bphtbNama"></span><span class="role-badge">PETUGAS BPHTB</span></div>
+      <div class="actions">
+        <button class="btn secondary" onclick="openGantiPassword()">Ganti Password</button>
+        <button class="btn secondary" onclick="doLogout()">Keluar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Daftar Hasil Pengecekan PBB</h2>
+      <div id="bphtbError" class="error-msg"></div>
+      <div class="search-row">
+        <input type="text" id="searchBox" placeholder="Cari NOP / Desa / Nama Petugas..." oninput="onFilterChange()">
+        <select id="filterStatus" onchange="onFilterChange()">
+          <option value="">Semua Status</option>
+          <option value="Sesuai">Sesuai</option>
+          <option value="Tidak Sesuai">Tidak Sesuai</option>
+        </select>
+        <select id="pageSizeSelect" onchange="onFilterChange()">
+          <option value="10">10 / halaman</option>
+          <option value="15" selected>15 / halaman</option>
+          <option value="25">25 / halaman</option>
+          <option value="50">50 / halaman</option>
+          <option value="100">100 / halaman</option>
+        </select>
+        <button class="btn secondary" onclick="loadAllData()">🔄 Muat Ulang</button>
+      </div>
+      <div class="summary-row" id="summaryRow"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Tgl Input</th><th>NOP</th><th>No. Legalitas</th><th>Desa</th><th>Status</th>
+              <th>Catatan</th><th>Nama Petugas</th><th>Proses</th>
+            </tr>
+          </thead>
+          <tbody id="allDataBody"></tbody>
+        </table>
+        <div class="empty hidden" id="allDataEmpty">Belum ada data.</div>
+      </div>
+      <div class="pagination-row" id="paginationRow"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===================== MODAL: LOGIN ===================== -->
+<div class="overlay" id="loginOverlay">
+  <div class="modal">
+    <button class="close-x" onclick="closeOverlay('loginOverlay')">&times;</button>
+    <h2 id="loginTitle">Login</h2>
+    <div class="sub" id="loginSub"></div>
+    <label>Username</label>
+    <input type="text" id="loginUsername">
+    <label>Password</label>
+    <input type="password" id="loginPassword">
+    <div class="checkbox-row">
+      <input type="checkbox" id="rememberMe">
+      <label for="rememberMe" style="margin:0;font-weight:400;">Ingat username &amp; password saya di perangkat ini</label>
+    </div>
+    <div class="error-msg" id="loginError"></div>
+    <button class="btn block" id="loginBtn" onclick="doLogin()">Masuk</button>
+  </div>
+</div>
+
+<!-- ===================== MODAL: DETAIL / SURAT PERNYATAAN ===================== -->
+<div class="overlay" id="detailOverlay">
+  <div class="modal wide">
+    <button class="close-x" onclick="closeOverlay('detailOverlay')">&times;</button>
+    <h2>Ringkasan Hasil Pengecekan</h2>
+    <div id="printArea">
+      <div class="surat" id="suratBody"></div>
+    </div>
+    <button class="btn block" onclick="window.print()">🖨️ Cetak</button>
+  </div>
+</div>
+
+<!-- ===================== MODAL: GANTI PASSWORD ===================== -->
+<div class="overlay" id="passOverlay">
+  <div class="modal">
+    <button class="close-x" onclick="closeOverlay('passOverlay')">&times;</button>
+    <h2>Ganti Password</h2>
+    <label>Password Lama</label>
+    <input type="password" id="passLama">
+    <label>Password Baru (min. 6 karakter)</label>
+    <input type="password" id="passBaru">
+    <div class="error-msg" id="passError"></div>
+    <div class="ok-msg" id="passOk"></div>
+    <button class="btn secondary block" onclick="submitGantiPassword()">Simpan Password Baru</button>
+  </div>
+</div>
+
+<script>
+  // =====================================================================
+  // WAJIB DIISI: tempel URL Web App Apps Script Anda di sini (diakhiri /exec)
+  // Deploy Code.gs sebagai Web App ("Anyone" access), lalu salin URL-nya.
+  // =====================================================================
+  var API_URL = 'https://script.google.com/macros/s/AKfycbzbcB3D6eq0waVSuG0283e_FxPqY3_JQtQWV2ziomn2eiyTRGhbB0bC24B6tnj8jaHF/exec';
+
+  var SESSION = { token: null, nama: null, role: null };
+  var pendingRole = null;
+  var selectedStatus = null;
+  var allDataCache = [];
+  var currentPage = 1;
+  var pageSize = 15;
+
+  // ---------- Helper panggil API Apps Script ----------
+  function callApi(action, args){
+    return fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: action, args: args || [] })
+    }).then(function(res){
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    });
+  }
+
+  // ---------- Ingat login (localStorage) ----------
+  function rememberKey(role){ return 'pbbBphtbLogin_' + role; }
+  function saveRemembered(role, username, password){
+    localStorage.setItem(rememberKey(role), JSON.stringify({ u: username, p: password }));
+  }
+  function clearRemembered(role){
+    localStorage.removeItem(rememberKey(role));
+  }
+  function getRemembered(role){
+    var raw = localStorage.getItem(rememberKey(role));
+    return raw ? JSON.parse(raw) : null;
+  }
+
+  function openLogin(role){
+    pendingRole = role;
+    document.getElementById('loginTitle').textContent = role === 'PBB' ? 'Login Petugas PBB' : 'Login Petugas BPHTB';
+    document.getElementById('loginSub').textContent = role === 'PBB' ? 'Untuk menginput hasil pengecekan PBB' : 'Untuk melihat daftar hasil pengecekan';
+    var remembered = getRemembered(role);
+    document.getElementById('loginUsername').value = remembered ? remembered.u : '';
+    document.getElementById('loginPassword').value = remembered ? remembered.p : '';
+    document.getElementById('rememberMe').checked = !!remembered;
+    document.getElementById('loginError').style.display = 'none';
+    document.getElementById('loginOverlay').classList.add('show');
+  }
+
+  function closeOverlay(id){ document.getElementById(id).classList.remove('show'); }
+
+  function doLogin(){
+    var u = document.getElementById('loginUsername').value.trim();
+    var p = document.getElementById('loginPassword').value;
+    var remember = document.getElementById('rememberMe').checked;
+    var errEl = document.getElementById('loginError');
+    errEl.style.display = 'none';
+    if(!u || !p){ errEl.textContent = 'Username dan password wajib diisi.'; errEl.style.display='block'; return; }
+    document.getElementById('loginBtn').disabled = true;
+    callApi('login', [u, p]).then(function(res){
+      document.getElementById('loginBtn').disabled = false;
+      if(!res.success){ errEl.textContent = res.message; errEl.style.display='block'; return; }
+      if(res.role !== pendingRole){
+        errEl.textContent = 'Akun ini bukan akun ' + pendingRole + '.'; errEl.style.display='block'; return;
+      }
+      if(remember){ saveRemembered(pendingRole, u, p); } else { clearRemembered(pendingRole); }
+      SESSION.token = res.token; SESSION.nama = res.nama; SESSION.role = res.role;
+      closeOverlay('loginOverlay');
+      enterApp();
+    }).catch(function(err){
+      document.getElementById('loginBtn').disabled = false;
+      errEl.textContent = 'Tidak bisa menghubungi server: ' + err.message; errEl.style.display='block';
+    });
+  }
+
+  function enterApp(){
+    document.getElementById('homeView').classList.add('hidden');
+    if(SESSION.role === 'PBB'){
+      document.getElementById('pbbNama').textContent = SESSION.nama;
+      document.getElementById('pbbView').classList.remove('hidden');
+      loadMyData();
+    } else {
+      document.getElementById('bphtbNama').textContent = SESSION.nama;
+      document.getElementById('bphtbView').classList.remove('hidden');
+      loadAllData();
+    }
+  }
+
+  function doLogout(){
+    callApi('logout', [SESSION.token]).catch(function(){});
+    SESSION = { token: null, nama: null, role: null };
+    document.getElementById('pbbView').classList.add('hidden');
+    document.getElementById('bphtbView').classList.add('hidden');
+    document.getElementById('homeView').classList.remove('hidden');
+  }
+
+  // ---------- Form input PBB ----------
+  function setStatus(s){
+    selectedStatus = s;
+    document.getElementById('btnSesuai').classList.toggle('active', s === 'Sesuai');
+    document.getElementById('btnTidak').classList.toggle('active', s === 'Tidak Sesuai');
+  }
+
+  function submitData(){
+    var errEl = document.getElementById('pbbError'), okEl = document.getElementById('pbbOk');
+    errEl.style.display = 'none'; okEl.style.display = 'none';
+    var data = {
+      nop: document.getElementById('f_nop').value.replace(/\D/g, ''),
+      noLegalitas: document.getElementById('f_legalitas').value,
+      desa: document.getElementById('f_desa').value,
+      status: selectedStatus,
+      catatan: document.getElementById('f_catatan').value
+    };
+    if(!data.nop || !data.noLegalitas || !data.desa || !data.status){
+      errEl.textContent = 'NOP, No Legalitas, Desa, dan Status wajib diisi.'; errEl.style.display = 'block'; return;
+    }
+    document.getElementById('btnSubmit').disabled = true;
+    callApi('submitPBBData', [SESSION.token, data]).then(function(res){
+      document.getElementById('btnSubmit').disabled = false;
+      if(!res.success){ errEl.textContent = res.message; errEl.style.display = 'block'; return; }
+      okEl.textContent = res.message; okEl.style.display = 'block';
+      document.getElementById('f_nop').value = '';
+      document.getElementById('f_legalitas').value = '';
+      document.getElementById('f_desa').value = '';
+      document.getElementById('f_catatan').value = '';
+      setStatus(null);
+      loadMyData();
+    }).catch(function(err){
+      document.getElementById('btnSubmit').disabled = false;
+      errEl.textContent = 'Tidak bisa menghubungi server: ' + err.message; errEl.style.display = 'block';
+    });
+  }
+
+  function loadMyData(){
+    callApi('getMyPBBData', [SESSION.token]).then(function(res){
+      var body = document.getElementById('myDataBody'); body.innerHTML = '';
+      if(!res.success){
+        document.getElementById('pbbError').textContent = res.message;
+        document.getElementById('pbbError').style.display = 'block';
+        return;
+      }
+      if(!res.data.length){
+        document.getElementById('myDataEmpty').classList.remove('hidden'); return;
+      }
+      document.getElementById('myDataEmpty').classList.add('hidden');
+      res.data.forEach(function(r){
+        var badgeClass = r.status.replace(' ', '.');
+        body.innerHTML += '<tr><td>'+r.tanggalText+'</td><td>'+esc(formatNOP(r.nop))+'</td><td>'+esc(r.noLegalitas)+'</td>'+
+          '<td>'+esc(r.desa)+'</td><td><span class="badge '+badgeClass+'">'+r.status+'</span></td>'+
+          '<td>'+esc(r.catatan||'-')+'</td></tr>';
+      });
+    }).catch(function(err){
+      document.getElementById('pbbError').textContent = 'Tidak bisa menghubungi server: ' + err.message;
+      document.getElementById('pbbError').style.display = 'block';
+    });
+  }
+
+  // ---------- Tabel BPHTB ----------
+  function loadAllData(){
+    var errEl = document.getElementById('bphtbError');
+    errEl.style.display = 'none';
+    callApi('getAllPBBData', [SESSION.token]).then(function(res){
+      if(!res.success){
+        errEl.textContent = res.message; errEl.style.display = 'block';
+        allDataCache = [];
+        currentPage = 1;
+        renderBphtbTable();
+        return;
+      }
+      allDataCache = res.data;
+      currentPage = 1;
+      renderBphtbTable();
+    }).catch(function(err){
+      errEl.textContent = 'Tidak bisa menghubungi server: ' + err.message; errEl.style.display = 'block';
+      allDataCache = [];
+      currentPage = 1;
+      renderBphtbTable();
+    });
+  }
+
+  function onFilterChange(){
+    currentPage = 1;
+    renderBphtbTable();
+  }
+
+  function changePage(delta){
+    currentPage += delta;
+    renderBphtbTable();
+  }
+
+  function renderBphtbTable(){
+    var q = document.getElementById('searchBox').value.toLowerCase();
+    var st = document.getElementById('filterStatus').value;
+    pageSize = parseInt(document.getElementById('pageSizeSelect').value, 10) || 15;
+    var body = document.getElementById('allDataBody'); body.innerHTML = '';
+    var filtered = allDataCache.filter(function(r){
+      var matchQ = !q || (r.nop+' '+r.desa+' '+r.namaPetugas+' '+r.noLegalitas).toLowerCase().indexOf(q) !== -1;
+      var matchS = !st || r.status === st;
+      return matchQ && matchS;
+    });
+
+    // Ringkasan jumlah data
+    var totalSesuai = filtered.filter(function(r){ return r.status === 'Sesuai'; }).length;
+    var totalTidak = filtered.length - totalSesuai;
+    var summaryHtml = '<span>Total data: <b>' + filtered.length + '</b>' +
+      (filtered.length !== allDataCache.length ? ' (dari ' + allDataCache.length + ')' : '') + '</span>' +
+      '<span><span class="dot ok"></span>Sesuai: <b>' + totalSesuai + '</b></span>' +
+      '<span><span class="dot no"></span>Tidak Sesuai: <b>' + totalTidak + '</b></span>';
+    document.getElementById('summaryRow').innerHTML = summaryHtml;
+
+    if(!filtered.length){
+      document.getElementById('allDataEmpty').classList.remove('hidden');
+      document.getElementById('paginationRow').innerHTML = '';
+      return;
+    }
+    document.getElementById('allDataEmpty').classList.add('hidden');
+
+    // Paginasi
+    var totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    if(currentPage > totalPages) currentPage = totalPages;
+    if(currentPage < 1) currentPage = 1;
+    var startIdx = (currentPage - 1) * pageSize;
+    var pageItems = filtered.slice(startIdx, startIdx + pageSize);
+
+    pageItems.forEach(function(r){
+      var badgeClass = r.status.replace(' ', '.');
+      body.innerHTML += '<tr><td>'+r.tanggalText+'</td><td>'+esc(formatNOP(r.nop))+'</td><td>'+esc(r.noLegalitas)+'</td>'+
+        '<td>'+esc(r.desa)+'</td><td><span class="badge '+badgeClass+'">'+r.status+'</span></td>'+
+        '<td>'+esc(r.catatan||'-')+'</td><td>'+esc(r.namaPetugas)+'</td>'+
+        '<td><button class="btn secondary" onclick="showDetail(\''+r.id+'\')">Lihat Detail</button></td></tr>';
+    });
+
+    document.getElementById('paginationRow').innerHTML =
+      '<button class="btn secondary" onclick="changePage(-1)" ' + (currentPage <= 1 ? 'disabled' : '') + '>&laquo; Sebelumnya</button>' +
+      '<span>Halaman <b>' + currentPage + '</b> dari <b>' + totalPages + '</b></span>' +
+      '<button class="btn secondary" onclick="changePage(1)" ' + (currentPage >= totalPages ? 'disabled' : '') + '>Berikutnya &raquo;</button>';
+  }
+
+  var NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  function formatTanggalIndo(tgl){
+    var d = new Date(tgl);
+    if(isNaN(d.getTime())) return '-';
+    return d.getDate() + ' ' + NAMA_BULAN[d.getMonth()] + ' ' + d.getFullYear();
+  }
+
+  function showDetail(id){
+    var r = allDataCache.filter(function(x){ return x.id === id; })[0];
+    if(!r) return;
+    var statusSesuai = r.status === 'Sesuai';
+    var statusClass = statusSesuai ? 'status-ok' : 'status-no';
+    var statusText = statusSesuai ? 'SUDAH SESUAI' : 'TIDAK SESUAI';
+    var catatan = r.catatan && r.catatan.trim() ? esc(r.catatan) : '-';
+    var tglCetak = formatTanggalIndo(new Date());
+
+    document.getElementById('suratBody').innerHTML =
+      '<div class="surat-kop">' +
+        '<div class="surat-kop-title">Surat Keterangan Hasil Pengecekan PBB-P2</div>' +
+        '<div class="surat-kop-sub">Sistem Informasi Manajemen (SIM) PBB-P2 &middot; Kabupaten Tabanan</div>' +
+      '</div>' +
+      '<p class="surat-intro">Berdasarkan hasil pengecekan yang dilakukan terhadap data pada Sistem Informasi Manajemen (SIM) PBB-P2, dengan ini dinyatakan sebagai berikut:</p>' +
+      '<table class="surat-table">' +
+        '<tr><td class="label">Nomor Objek Pajak (NOP)</td><td class="sep">:</td><td><b>' + esc(formatNOP(r.nop)) + '</b></td></tr>' +
+        '<tr><td class="label">No. Legalitas</td><td class="sep">:</td><td>' + esc(r.noLegalitas) + '</td></tr>' +
+        '<tr><td class="label">Desa/Kelurahan</td><td class="sep">:</td><td>' + esc(r.desa) + '</td></tr>' +
+        '<tr><td class="label">Tanggal Pengecekan</td><td class="sep">:</td><td>' + r.tanggalText + ' WITA</td></tr>' +
+        '<tr><td class="label">Petugas Pemeriksa</td><td class="sep">:</td><td>' + esc(r.namaPetugas) + '</td></tr>' +
+        '<tr><td class="label">Status Kesesuaian</td><td class="sep">:</td><td><b class="' + statusClass + '">' + statusText + '</b></td></tr>' +
+        '<tr><td class="label">Catatan</td><td class="sep">:</td><td>' + catatan + '</td></tr>' +
+      '</table>' +
+      '<p class="surat-closing">Demikian keterangan ini dibuat berdasarkan data yang tersedia pada sistem, untuk dipergunakan sebagaimana mestinya.</p>' +
+      '<div class="ttd">' +
+        'Tabanan, ' + tglCetak + '<br>' +
+        'Petugas Pemeriksa,' +
+        '<div class="space"></div>' +
+        '<b>(' + esc(r.namaPetugas) + ')</b>' +
+      '</div>';
+    document.getElementById('detailOverlay').classList.add('show');
+  }
+
+  // ---------- Ganti password ----------
+  function openGantiPassword(){
+    document.getElementById('passLama').value = '';
+    document.getElementById('passBaru').value = '';
+    document.getElementById('passError').style.display = 'none';
+    document.getElementById('passOk').style.display = 'none';
+    document.getElementById('passOverlay').classList.add('show');
+  }
+  function submitGantiPassword(){
+    var lama = document.getElementById('passLama').value;
+    var baru = document.getElementById('passBaru').value;
+    var errEl = document.getElementById('passError'), okEl = document.getElementById('passOk');
+    errEl.style.display='none'; okEl.style.display='none';
+    callApi('gantiPassword', [SESSION.token, lama, baru]).then(function(res){
+      if(!res.success){ errEl.textContent = res.message; errEl.style.display='block'; return; }
+      okEl.textContent = 'Password berhasil diganti. Ingat perbarui juga password yang tersimpan (jika Anda mencentang "Ingat saya").';
+      okEl.style.display='block';
+    }).catch(function(err){
+      errEl.textContent = 'Tidak bisa menghubungi server: ' + err.message; errEl.style.display='block';
+    });
+  }
+
+  // ---------- Format NOP: 2-2-3-3-3-4-1 digit, dipisah titik ----------
+  function formatNOP(raw){
+    var digits = String(raw || '').replace(/\D/g, '').slice(0, 18);
+    var groups = [2, 2, 3, 3, 3, 4, 1];
+    var parts = [];
+    var pos = 0;
+    for (var i = 0; i < groups.length && pos < digits.length; i++) {
+      parts.push(digits.substr(pos, groups[i]));
+      pos += groups[i];
+    }
+    return parts.join('.');
+  }
+
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+</script>
+</body>
+</html>
