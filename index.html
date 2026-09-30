@@ -139,14 +139,14 @@
       <div class="home-cards">
         <div class="home-card" onclick="openLogin('PBB')">
           <div class="icon-circle">📋</div>
-          <h3>LOGIN PBB</h3>
-          <p>Menginput hasil pengecekan</p>
+          <h3>Login PBB</h3>
+          <p>Menginput data hasil pengecekan</p>
           <span class="tag">Petugas PBB</span>
         </div>
         <div class="home-card" onclick="openLogin('BPHTB')">
           <div class="icon-circle">🔍</div>
-          <h3>LOGIN BPHTB</h3>
-          <p>Melihat hasil pengecekan</p>
+          <h3>Login BPHTB</h3>
+          <p>Melihat data yang sudah dicek</p>
           <span class="tag">Petugas BPHTB</span>
         </div>
       </div>
@@ -164,7 +164,7 @@
     </div>
 
     <div class="card">
-      <h2>Input Hasil Pengecekan PBB</h2>
+      <h2 id="formTitle">Input Hasil Pengecekan PBB</h2>
       <div class="grid2">
         <div>
           <label>NOP</label>
@@ -194,7 +194,11 @@
 
       <div id="pbbError" class="error-msg"></div>
       <div id="pbbOk" class="ok-msg"></div>
-      <button class="btn block" onclick="submitData()" id="btnSubmit">Simpan Data</button>
+      <div id="pbbWaitNote" class="ok-msg" style="color:var(--muted);"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn block" onclick="submitData()" id="btnSubmit">Simpan Data</button>
+        <button class="btn secondary hidden" id="btnBatalEdit" onclick="batalEdit()" style="margin-top:16px;white-space:nowrap;">Batal</button>
+      </div>
     </div>
 
     <div class="card">
@@ -202,12 +206,13 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Tanggal</th><th>NOP</th><th>No. Legalitas</th><th>Desa</th><th>Status</th><th>Catatan</th></tr>
+            <tr><th>Tanggal</th><th>NOP</th><th>No. Legalitas</th><th>Desa</th><th>Status</th><th>Catatan</th><th>Aksi</th></tr>
           </thead>
           <tbody id="myDataBody"></tbody>
         </table>
         <div class="empty hidden" id="myDataEmpty">Belum ada data yang diinput.</div>
       </div>
+      <div class="pagination-row" id="myPaginationRow"></div>
     </div>
   </div>
 
@@ -316,8 +321,12 @@
   var pendingRole = null;
   var selectedStatus = null;
   var allDataCache = [];
+  var myDataCache = [];
+  var editingId = null;
   var currentPage = 1;
   var pageSize = 15;
+  var myCurrentPage = 1;
+  var MY_PAGE_SIZE = 10;
 
   // ---------- Helper panggil API Apps Script ----------
   function callApi(action, args){
@@ -397,6 +406,9 @@
   function doLogout(){
     callApi('logout', [SESSION.token]).catch(function(){});
     SESSION = { token: null, nama: null, role: null };
+    editingId = null;
+    myDataCache = [];
+    allDataCache = [];
     document.getElementById('pbbView').classList.add('hidden');
     document.getElementById('bphtbView').classList.add('hidden');
     document.getElementById('homeView').classList.remove('hidden');
@@ -411,7 +423,8 @@
 
   function submitData(){
     var errEl = document.getElementById('pbbError'), okEl = document.getElementById('pbbOk');
-    errEl.style.display = 'none'; okEl.style.display = 'none';
+    var waitNote = document.getElementById('pbbWaitNote');
+    errEl.style.display = 'none'; okEl.style.display = 'none'; waitNote.style.display = 'none';
     var data = {
       nop: document.getElementById('f_nop').value.replace(/\D/g, ''),
       noLegalitas: document.getElementById('f_legalitas').value,
@@ -422,41 +435,155 @@
     if(!data.nop || !data.noLegalitas || !data.desa || !data.status){
       errEl.textContent = 'NOP, No Legalitas, Desa, dan Status wajib diisi.'; errEl.style.display = 'block'; return;
     }
-    document.getElementById('btnSubmit').disabled = true;
-    callApi('submitPBBData', [SESSION.token, data]).then(function(res){
-      document.getElementById('btnSubmit').disabled = false;
+
+    var btn = document.getElementById('btnSubmit');
+    var isEdit = !!editingId;
+    var originalLabel = isEdit ? 'Simpan Perubahan' : 'Simpan Data';
+    btn.disabled = true;
+    btn.textContent = isEdit ? 'Menyimpan perubahan...' : 'Menyimpan...';
+
+    // Kalau prosesnya terasa lama, kasih tahu petugas jangan buru-buru menutup halaman
+    var waitTimer = setTimeout(function(){
+      waitNote.textContent = 'Masih memproses, mohon jangan tutup halaman ini — data akan tetap tersimpan walau terasa lama.';
+      waitNote.style.display = 'block';
+    }, 4000);
+
+    function selesai(){
+      clearTimeout(waitTimer);
+      waitNote.style.display = 'none';
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    }
+
+    var action = isEdit ? 'editPBBData' : 'submitPBBData';
+    var args = isEdit ? [SESSION.token, editingId, data] : [SESSION.token, data];
+
+    callApi(action, args).then(function(res){
+      selesai();
       if(!res.success){ errEl.textContent = res.message; errEl.style.display = 'block'; return; }
-      okEl.textContent = res.message; okEl.style.display = 'block';
-      document.getElementById('f_nop').value = '';
-      document.getElementById('f_legalitas').value = '';
-      document.getElementById('f_desa').value = '';
-      document.getElementById('f_catatan').value = '';
-      setStatus(null);
-      loadMyData();
+
+      if(isEdit){
+        // Perbarui data di tabel secara lokal, tanpa perlu tarik ulang seluruh data
+        myDataCache = myDataCache.map(function(x){
+          return x.id === editingId ? Object.assign({}, x, data) : x;
+        });
+        renderMyData(myDataCache);
+        okEl.textContent = 'Perubahan berhasil disimpan.'; okEl.style.display = 'block';
+        batalEdit();
+      } else {
+        // Tambahkan langsung ke tabel lokal, tanpa perlu tarik ulang seluruh data
+        myDataCache.unshift({
+          id: res.id, tanggalText: res.tanggalText, nop: data.nop, noLegalitas: data.noLegalitas,
+          desa: data.desa, status: data.status, catatan: data.catatan, namaPetugas: SESSION.nama
+        });
+        renderMyData(myDataCache, true);
+        okEl.textContent = res.message; okEl.style.display = 'block';
+        resetForm();
+      }
     }).catch(function(err){
-      document.getElementById('btnSubmit').disabled = false;
-      errEl.textContent = 'Tidak bisa menghubungi server: ' + err.message; errEl.style.display = 'block';
+      selesai();
+      errEl.textContent = 'Tidak bisa menghubungi server: ' + err.message + '. Jika sempat terkirim, data kemungkinan sudah tersimpan — coba muat ulang halaman untuk memastikan.';
+      errEl.style.display = 'block';
     });
   }
 
+  function resetForm(){
+    document.getElementById('f_nop').value = '';
+    document.getElementById('f_legalitas').value = '';
+    document.getElementById('f_desa').value = '';
+    document.getElementById('f_catatan').value = '';
+    setStatus(null);
+  }
+
+  function mulaiEdit(id){
+    var r = myDataCache.filter(function(x){ return x.id === id; })[0];
+    if(!r) return;
+    editingId = id;
+    document.getElementById('f_nop').value = formatNOP(r.nop);
+    document.getElementById('f_legalitas').value = r.noLegalitas;
+    document.getElementById('f_desa').value = r.desa;
+    document.getElementById('f_catatan').value = r.catatan || '';
+    setStatus(r.status);
+    document.getElementById('formTitle').textContent = 'Ubah Data Pengecekan';
+    document.getElementById('btnSubmit').textContent = 'Simpan Perubahan';
+    document.getElementById('btnBatalEdit').classList.remove('hidden');
+    document.getElementById('pbbError').style.display = 'none';
+    document.getElementById('pbbOk').style.display = 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function batalEdit(){
+    editingId = null;
+    resetForm();
+    document.getElementById('formTitle').textContent = 'Input Hasil Pengecekan PBB';
+    document.getElementById('btnSubmit').textContent = 'Simpan Data';
+    document.getElementById('btnBatalEdit').classList.add('hidden');
+  }
+
+  function hapusData(id){
+    if(!confirm('Yakin ingin menghapus data ini? Tindakan ini tidak bisa dibatalkan.')) return;
+    callApi('deletePBBData', [SESSION.token, id]).then(function(res){
+      if(!res.success){ alert(res.message); return; }
+      myDataCache = myDataCache.filter(function(x){ return x.id !== id; });
+      if(editingId === id) batalEdit();
+      renderMyData(myDataCache);
+    }).catch(function(err){
+      alert('Tidak bisa menghubungi server: ' + err.message);
+    });
+  }
+
+  function renderMyData(data, resetPage){
+    myDataCache = data;
+    if(resetPage) myCurrentPage = 1;
+    renderMyDataPage();
+  }
+
+  function changeMyPage(delta){
+    myCurrentPage += delta;
+    renderMyDataPage();
+  }
+
+  function renderMyDataPage(){
+    var body = document.getElementById('myDataBody'); body.innerHTML = '';
+    if(!myDataCache.length){
+      document.getElementById('myDataEmpty').classList.remove('hidden');
+      document.getElementById('myPaginationRow').innerHTML = '';
+      return;
+    }
+    document.getElementById('myDataEmpty').classList.add('hidden');
+
+    var totalPages = Math.max(1, Math.ceil(myDataCache.length / MY_PAGE_SIZE));
+    if(myCurrentPage > totalPages) myCurrentPage = totalPages;
+    if(myCurrentPage < 1) myCurrentPage = 1;
+    var startIdx = (myCurrentPage - 1) * MY_PAGE_SIZE;
+    var pageItems = myDataCache.slice(startIdx, startIdx + MY_PAGE_SIZE);
+
+    pageItems.forEach(function(r){
+      var badgeClass = r.status.replace(' ', '.');
+      body.innerHTML += '<tr><td>'+r.tanggalText+'</td><td>'+esc(formatNOP(r.nop))+'</td><td>'+esc(r.noLegalitas)+'</td>'+
+        '<td>'+esc(r.desa)+'</td><td><span class="badge '+badgeClass+'">'+r.status+'</span></td>'+
+        '<td>'+esc(r.catatan||'-')+'</td>'+
+        '<td style="white-space:nowrap;"><button class="btn secondary" onclick="mulaiEdit(\''+r.id+'\')">Edit</button> '+
+        '<button class="btn secondary" onclick="hapusData(\''+r.id+'\')">Hapus</button></td></tr>';
+    });
+
+    document.getElementById('myPaginationRow').innerHTML =
+      '<button class="btn secondary" onclick="changeMyPage(-1)" ' + (myCurrentPage <= 1 ? 'disabled' : '') + '>&laquo; Sebelumnya</button>' +
+      '<span>Halaman <b>' + myCurrentPage + '</b> dari <b>' + totalPages + '</b> (total ' + myDataCache.length + ' data)</span>' +
+      '<button class="btn secondary" onclick="changeMyPage(1)" ' + (myCurrentPage >= totalPages ? 'disabled' : '') + '>Berikutnya &raquo;</button>';
+  }
+
   function loadMyData(){
+    document.getElementById('myDataEmpty').classList.add('hidden');
+    document.getElementById('myDataBody').innerHTML = '<tr><td colspan="7" class="empty">Memuat data...</td></tr>';
     callApi('getMyPBBData', [SESSION.token]).then(function(res){
-      var body = document.getElementById('myDataBody'); body.innerHTML = '';
       if(!res.success){
+        document.getElementById('myDataBody').innerHTML = '';
         document.getElementById('pbbError').textContent = res.message;
         document.getElementById('pbbError').style.display = 'block';
         return;
       }
-      if(!res.data.length){
-        document.getElementById('myDataEmpty').classList.remove('hidden'); return;
-      }
-      document.getElementById('myDataEmpty').classList.add('hidden');
-      res.data.forEach(function(r){
-        var badgeClass = r.status.replace(' ', '.');
-        body.innerHTML += '<tr><td>'+r.tanggalText+'</td><td>'+esc(formatNOP(r.nop))+'</td><td>'+esc(r.noLegalitas)+'</td>'+
-          '<td>'+esc(r.desa)+'</td><td><span class="badge '+badgeClass+'">'+r.status+'</span></td>'+
-          '<td>'+esc(r.catatan||'-')+'</td></tr>';
-      });
+      renderMyData(res.data, true);
     }).catch(function(err){
       document.getElementById('pbbError').textContent = 'Tidak bisa menghubungi server: ' + err.message;
       document.getElementById('pbbError').style.display = 'block';
@@ -467,6 +594,9 @@
   function loadAllData(){
     var errEl = document.getElementById('bphtbError');
     errEl.style.display = 'none';
+    document.getElementById('allDataEmpty').classList.add('hidden');
+    document.getElementById('summaryRow').innerHTML = '';
+    document.getElementById('allDataBody').innerHTML = '<tr><td colspan="8" class="empty">Memuat data...</td></tr>';
     callApi('getAllPBBData', [SESSION.token]).then(function(res){
       if(!res.success){
         errEl.textContent = res.message; errEl.style.display = 'block';
