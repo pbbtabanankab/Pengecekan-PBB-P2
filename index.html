@@ -202,15 +202,25 @@
     </div>
 
     <div class="card">
-      <h2>Data yang Sudah Saya Input</h2>
+      <h2>Daftar Seluruh Data Pengecekan</h2>
+      <p style="font-size:12.5px;color:var(--muted);margin:-8px 0 14px;">
+        Berisi data dari semua petugas PBB. Gunakan pencarian untuk mengecek apakah NOP atau No. Legalitas ini
+        sudah pernah diperiksa petugas lain sebelum menginput data baru. Anda hanya bisa mengubah/menghapus data milik sendiri.
+      </p>
+      <div id="pbbListError" class="error-msg"></div>
+      <div class="search-row">
+        <input type="text" id="myCariBox" placeholder="Cari NOP / No. Legalitas / Desa..." oninput="onMyFilterChange()">
+        <button class="btn secondary" onclick="loadMyData()">🔄 Muat Ulang</button>
+      </div>
+      <div class="summary-row" id="mySummaryRow"></div>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Tanggal</th><th>NOP</th><th>No. Legalitas</th><th>Desa</th><th>Status</th><th>Catatan</th><th>Aksi</th></tr>
+            <tr><th>Tanggal</th><th>NOP</th><th>No. Legalitas</th><th>Desa</th><th>Status</th><th>Catatan</th><th>Petugas</th><th>Aksi</th></tr>
           </thead>
           <tbody id="myDataBody"></tbody>
         </table>
-        <div class="empty hidden" id="myDataEmpty">Belum ada data yang diinput.</div>
+        <div class="empty hidden" id="myDataEmpty">Belum ada data.</div>
       </div>
       <div class="pagination-row" id="myPaginationRow"></div>
     </div>
@@ -317,7 +327,7 @@
   // =====================================================================
   var API_URL = 'https://script.google.com/macros/s/AKfycbzbcB3D6eq0waVSuG0283e_FxPqY3_JQtQWV2ziomn2eiyTRGhbB0bC24B6tnj8jaHF/exec';
 
-  var SESSION = { token: null, nama: null, role: null };
+  var SESSION = { token: null, nama: null, role: null, username: null };
   var pendingRole = null;
   var selectedStatus = null;
   var allDataCache = [];
@@ -381,7 +391,7 @@
         errEl.textContent = 'Akun ini bukan akun ' + pendingRole + '.'; errEl.style.display='block'; return;
       }
       if(remember){ saveRemembered(pendingRole, u, p); } else { clearRemembered(pendingRole); }
-      SESSION.token = res.token; SESSION.nama = res.nama; SESSION.role = res.role;
+      SESSION.token = res.token; SESSION.nama = res.nama; SESSION.role = res.role; SESSION.username = res.username;
       closeOverlay('loginOverlay');
       enterApp();
     }).catch(function(err){
@@ -405,7 +415,7 @@
 
   function doLogout(){
     callApi('logout', [SESSION.token]).catch(function(){});
-    SESSION = { token: null, nama: null, role: null };
+    SESSION = { token: null, nama: null, role: null, username: null };
     editingId = null;
     myDataCache = [];
     allDataCache = [];
@@ -474,7 +484,8 @@
         // Tambahkan langsung ke tabel lokal, tanpa perlu tarik ulang seluruh data
         myDataCache.unshift({
           id: res.id, tanggalText: res.tanggalText, nop: data.nop, noLegalitas: data.noLegalitas,
-          desa: data.desa, status: data.status, catatan: data.catatan, namaPetugas: SESSION.nama
+          desa: data.desa, status: data.status, catatan: data.catatan,
+          namaPetugas: SESSION.nama, usernamePetugas: SESSION.username
         });
         renderMyData(myDataCache, true);
         okEl.textContent = res.message; okEl.style.display = 'block';
@@ -498,6 +509,7 @@
   function mulaiEdit(id){
     var r = myDataCache.filter(function(x){ return x.id === id; })[0];
     if(!r) return;
+    if(r.usernamePetugas !== SESSION.username){ alert('Anda hanya dapat mengubah data milik Anda sendiri.'); return; }
     editingId = id;
     document.getElementById('f_nop').value = formatNOP(r.nop);
     document.getElementById('f_legalitas').value = r.noLegalitas;
@@ -521,6 +533,8 @@
   }
 
   function hapusData(id){
+    var r = myDataCache.filter(function(x){ return x.id === id; })[0];
+    if(r && r.usernamePetugas !== SESSION.username){ alert('Anda hanya dapat menghapus data milik Anda sendiri.'); return; }
     if(!confirm('Yakin ingin menghapus data ini? Tindakan ini tidak bisa dibatalkan.')) return;
     callApi('deletePBBData', [SESSION.token, id]).then(function(res){
       if(!res.success){ alert(res.message); return; }
@@ -538,55 +552,78 @@
     renderMyDataPage();
   }
 
+  function onMyFilterChange(){
+    myCurrentPage = 1;
+    renderMyDataPage();
+  }
+
   function changeMyPage(delta){
     myCurrentPage += delta;
     renderMyDataPage();
   }
 
   function renderMyDataPage(){
+    var q = document.getElementById('myCariBox').value.toLowerCase().replace(/\./g, '');
     var body = document.getElementById('myDataBody'); body.innerHTML = '';
-    if(!myDataCache.length){
+
+    var filtered = myDataCache.filter(function(r){
+      if(!q) return true;
+      var hay = (r.nop + ' ' + r.noLegalitas + ' ' + r.desa + ' ' + r.namaPetugas).toLowerCase();
+      return hay.indexOf(q) !== -1;
+    });
+
+    document.getElementById('mySummaryRow').innerHTML =
+      '<span>Total data: <b>' + filtered.length + '</b>' +
+      (filtered.length !== myDataCache.length ? ' (dari ' + myDataCache.length + ')' : '') + '</span>';
+
+    if(!filtered.length){
       document.getElementById('myDataEmpty').classList.remove('hidden');
       document.getElementById('myPaginationRow').innerHTML = '';
       return;
     }
     document.getElementById('myDataEmpty').classList.add('hidden');
 
-    var totalPages = Math.max(1, Math.ceil(myDataCache.length / MY_PAGE_SIZE));
+    var totalPages = Math.max(1, Math.ceil(filtered.length / MY_PAGE_SIZE));
     if(myCurrentPage > totalPages) myCurrentPage = totalPages;
     if(myCurrentPage < 1) myCurrentPage = 1;
     var startIdx = (myCurrentPage - 1) * MY_PAGE_SIZE;
-    var pageItems = myDataCache.slice(startIdx, startIdx + MY_PAGE_SIZE);
+    var pageItems = filtered.slice(startIdx, startIdx + MY_PAGE_SIZE);
 
     pageItems.forEach(function(r){
       var badgeClass = r.status.replace(' ', '.');
+      var milikSendiri = r.usernamePetugas === SESSION.username;
+      var aksi = milikSendiri
+        ? '<button class="btn secondary" onclick="mulaiEdit(\''+r.id+'\')">Edit</button> <button class="btn secondary" onclick="hapusData(\''+r.id+'\')">Hapus</button>'
+        : '<span style="color:var(--muted);">&mdash;</span>';
       body.innerHTML += '<tr><td>'+r.tanggalText+'</td><td>'+esc(formatNOP(r.nop))+'</td><td>'+esc(r.noLegalitas)+'</td>'+
         '<td>'+esc(r.desa)+'</td><td><span class="badge '+badgeClass+'">'+r.status+'</span></td>'+
-        '<td>'+esc(r.catatan||'-')+'</td>'+
-        '<td style="white-space:nowrap;"><button class="btn secondary" onclick="mulaiEdit(\''+r.id+'\')">Edit</button> '+
-        '<button class="btn secondary" onclick="hapusData(\''+r.id+'\')">Hapus</button></td></tr>';
+        '<td>'+esc(r.catatan||'-')+'</td><td>'+esc(r.namaPetugas)+'</td>'+
+        '<td style="white-space:nowrap;">'+aksi+'</td></tr>';
     });
 
     document.getElementById('myPaginationRow').innerHTML =
       '<button class="btn secondary" onclick="changeMyPage(-1)" ' + (myCurrentPage <= 1 ? 'disabled' : '') + '>&laquo; Sebelumnya</button>' +
-      '<span>Halaman <b>' + myCurrentPage + '</b> dari <b>' + totalPages + '</b> (total ' + myDataCache.length + ' data)</span>' +
+      '<span>Halaman <b>' + myCurrentPage + '</b> dari <b>' + totalPages + '</b></span>' +
       '<button class="btn secondary" onclick="changeMyPage(1)" ' + (myCurrentPage >= totalPages ? 'disabled' : '') + '>Berikutnya &raquo;</button>';
   }
 
   function loadMyData(){
+    document.getElementById('pbbListError').style.display = 'none';
     document.getElementById('myDataEmpty').classList.add('hidden');
-    document.getElementById('myDataBody').innerHTML = '<tr><td colspan="7" class="empty">Memuat data...</td></tr>';
-    callApi('getMyPBBData', [SESSION.token]).then(function(res){
+    document.getElementById('mySummaryRow').innerHTML = '';
+    document.getElementById('myDataBody').innerHTML = '<tr><td colspan="8" class="empty">Memuat data...</td></tr>';
+    callApi('getSemuaDataUntukPBB', [SESSION.token]).then(function(res){
       if(!res.success){
         document.getElementById('myDataBody').innerHTML = '';
-        document.getElementById('pbbError').textContent = res.message;
-        document.getElementById('pbbError').style.display = 'block';
+        document.getElementById('pbbListError').textContent = res.message;
+        document.getElementById('pbbListError').style.display = 'block';
         return;
       }
       renderMyData(res.data, true);
     }).catch(function(err){
-      document.getElementById('pbbError').textContent = 'Tidak bisa menghubungi server: ' + err.message;
-      document.getElementById('pbbError').style.display = 'block';
+      document.getElementById('myDataBody').innerHTML = '';
+      document.getElementById('pbbListError').textContent = 'Tidak bisa menghubungi server: ' + err.message;
+      document.getElementById('pbbListError').style.display = 'block';
     });
   }
 
