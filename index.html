@@ -82,8 +82,8 @@
   th,td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;}
   th{background:#fff;border-bottom:2px solid var(--merah-muda);font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);}
   .badge{padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;}
-  .badge.Sesuai{background:#eafaf0;color:var(--ok);}
-  .badge.Tidak.Sesuai{background:var(--merah-muda);color:var(--danger);}
+  .badge.ok{background:#eafaf0;color:var(--ok);}
+  .badge.no{background:var(--merah-muda);color:var(--danger);}
   .table-wrap{overflow-x:auto;}
   .empty{color:var(--muted);font-size:13px;padding:16px 0;text-align:center;}
   .search-row{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
@@ -345,7 +345,10 @@
       body: JSON.stringify({ action: action, args: args || [] })
     }).then(function(res){
       if(!res.ok) throw new Error('HTTP ' + res.status);
-      return res.json();
+      return res.text();
+    }).then(function(txt){
+      try { return JSON.parse(txt); }
+      catch(e){ throw new Error('Respons server tidak valid (cek apakah Web App sudah di-deploy ulang dengan versi baru dan akses "Anyone").'); }
     });
   }
 
@@ -563,14 +566,10 @@
   }
 
   function renderMyDataPage(){
-    var q = document.getElementById('myCariBox').value.toLowerCase().replace(/\./g, '');
+    var q = document.getElementById('myCariBox').value.toLowerCase().trim();
     var body = document.getElementById('myDataBody'); body.innerHTML = '';
 
-    var filtered = myDataCache.filter(function(r){
-      if(!q) return true;
-      var hay = (r.nop + ' ' + r.noLegalitas + ' ' + r.desa + ' ' + r.namaPetugas).toLowerCase();
-      return hay.indexOf(q) !== -1;
-    });
+    var filtered = myDataCache.filter(function(r){ return cocokCari(r, q); });
 
     document.getElementById('mySummaryRow').innerHTML =
       '<span>Total data: <b>' + filtered.length + '</b>' +
@@ -589,17 +588,20 @@
     var startIdx = (myCurrentPage - 1) * MY_PAGE_SIZE;
     var pageItems = filtered.slice(startIdx, startIdx + MY_PAGE_SIZE);
 
+    var html = '';
     pageItems.forEach(function(r){
-      var badgeClass = r.status.replace(' ', '.');
+      var badgeClass = r.status === 'Sesuai' ? 'ok' : 'no';
       var milikSendiri = r.usernamePetugas === SESSION.username;
       var aksi = milikSendiri
         ? '<button class="btn secondary" onclick="mulaiEdit(\''+r.id+'\')">Edit</button> <button class="btn secondary" onclick="hapusData(\''+r.id+'\')">Hapus</button>'
         : '<span style="color:var(--muted);">&mdash;</span>';
-      body.innerHTML += '<tr><td>'+r.tanggalText+'</td><td>'+esc(formatNOP(r.nop))+'</td><td>'+esc(r.noLegalitas)+'</td>'+
-        '<td>'+esc(r.desa)+'</td><td><span class="badge '+badgeClass+'">'+r.status+'</span></td>'+
+      html += '<tr><td>'+esc(r.tanggalText)+'</td><td>'+esc(formatNOP(r.nop))+'</td><td>'+esc(r.noLegalitas)+'</td>'+
+        '<td>'+esc(r.desa)+'</td><td><span class="badge '+badgeClass+'">'+esc(r.status)+'</span></td>'+
         '<td>'+esc(r.catatan||'-')+'</td><td>'+esc(r.namaPetugas)+'</td>'+
         '<td style="white-space:nowrap;">'+aksi+'</td></tr>';
     });
+
+    body.innerHTML = html;
 
     document.getElementById('myPaginationRow').innerHTML =
       '<button class="btn secondary" onclick="changeMyPage(-1)" ' + (myCurrentPage <= 1 ? 'disabled' : '') + '>&laquo; Sebelumnya</button>' +
@@ -614,16 +616,12 @@
     document.getElementById('myDataBody').innerHTML = '<tr><td colspan="8" class="empty">Memuat data...</td></tr>';
     callApi('getSemuaDataUntukPBB', [SESSION.token]).then(function(res){
       if(!res.success){
-        document.getElementById('myDataBody').innerHTML = '';
-        document.getElementById('pbbListError').textContent = res.message;
-        document.getElementById('pbbListError').style.display = 'block';
+        tampilGagalMuat('myDataBody', 'mySummaryRow', 'myPaginationRow', document.getElementById('pbbListError'), res.message);
         return;
       }
       renderMyData(res.data, true);
     }).catch(function(err){
-      document.getElementById('myDataBody').innerHTML = '';
-      document.getElementById('pbbListError').textContent = 'Tidak bisa menghubungi server: ' + err.message;
-      document.getElementById('pbbListError').style.display = 'block';
+      tampilGagalMuat('myDataBody', 'mySummaryRow', 'myPaginationRow', document.getElementById('pbbListError'), 'Tidak bisa menghubungi server: ' + err.message);
     });
   }
 
@@ -636,20 +634,14 @@
     document.getElementById('allDataBody').innerHTML = '<tr><td colspan="8" class="empty">Memuat data...</td></tr>';
     callApi('getAllPBBData', [SESSION.token]).then(function(res){
       if(!res.success){
-        errEl.textContent = res.message; errEl.style.display = 'block';
-        allDataCache = [];
-        currentPage = 1;
-        renderBphtbTable();
+        tampilGagalMuat('allDataBody', 'summaryRow', 'paginationRow', errEl, res.message);
         return;
       }
       allDataCache = res.data;
       currentPage = 1;
       renderBphtbTable();
     }).catch(function(err){
-      errEl.textContent = 'Tidak bisa menghubungi server: ' + err.message; errEl.style.display = 'block';
-      allDataCache = [];
-      currentPage = 1;
-      renderBphtbTable();
+      tampilGagalMuat('allDataBody', 'summaryRow', 'paginationRow', errEl, 'Tidak bisa menghubungi server: ' + err.message);
     });
   }
 
@@ -664,12 +656,12 @@
   }
 
   function renderBphtbTable(){
-    var q = document.getElementById('searchBox').value.toLowerCase();
+    var q = document.getElementById('searchBox').value.toLowerCase().trim();
     var st = document.getElementById('filterStatus').value;
     pageSize = parseInt(document.getElementById('pageSizeSelect').value, 10) || 15;
     var body = document.getElementById('allDataBody'); body.innerHTML = '';
     var filtered = allDataCache.filter(function(r){
-      var matchQ = !q || (r.nop+' '+r.desa+' '+r.namaPetugas+' '+r.noLegalitas).toLowerCase().indexOf(q) !== -1;
+      var matchQ = cocokCari(r, q);
       var matchS = !st || r.status === st;
       return matchQ && matchS;
     });
@@ -697,13 +689,16 @@
     var startIdx = (currentPage - 1) * pageSize;
     var pageItems = filtered.slice(startIdx, startIdx + pageSize);
 
+    var html = '';
     pageItems.forEach(function(r){
-      var badgeClass = r.status.replace(' ', '.');
-      body.innerHTML += '<tr><td>'+r.tanggalText+'</td><td>'+esc(formatNOP(r.nop))+'</td><td>'+esc(r.noLegalitas)+'</td>'+
-        '<td>'+esc(r.desa)+'</td><td><span class="badge '+badgeClass+'">'+r.status+'</span></td>'+
+      var badgeClass = r.status === 'Sesuai' ? 'ok' : 'no';
+      html += '<tr><td>'+esc(r.tanggalText)+'</td><td>'+esc(formatNOP(r.nop))+'</td><td>'+esc(r.noLegalitas)+'</td>'+
+        '<td>'+esc(r.desa)+'</td><td><span class="badge '+badgeClass+'">'+esc(r.status)+'</span></td>'+
         '<td>'+esc(r.catatan||'-')+'</td><td>'+esc(r.namaPetugas)+'</td>'+
         '<td><button class="btn secondary" onclick="showDetail(\''+r.id+'\')">Lihat Detail</button></td></tr>';
     });
+
+    body.innerHTML = html;
 
     document.getElementById('paginationRow').innerHTML =
       '<button class="btn secondary" onclick="changePage(-1)" ' + (currentPage <= 1 ? 'disabled' : '') + '>&laquo; Sebelumnya</button>' +
@@ -737,7 +732,7 @@
         '<tr><td class="label">Nomor Objek Pajak (NOP)</td><td class="sep">:</td><td><b>' + esc(formatNOP(r.nop)) + '</b></td></tr>' +
         '<tr><td class="label">No. Legalitas</td><td class="sep">:</td><td>' + esc(r.noLegalitas) + '</td></tr>' +
         '<tr><td class="label">Desa/Kelurahan</td><td class="sep">:</td><td>' + esc(r.desa) + '</td></tr>' +
-        '<tr><td class="label">Tanggal Pengecekan</td><td class="sep">:</td><td>' + r.tanggalText + ' WITA</td></tr>' +
+        '<tr><td class="label">Tanggal Pengecekan</td><td class="sep">:</td><td>' + esc(r.tanggalText) + ' WITA</td></tr>' +
         '<tr><td class="label">Petugas Pemeriksa</td><td class="sep">:</td><td>' + esc(r.namaPetugas) + '</td></tr>' +
         '<tr><td class="label">Status Kesesuaian</td><td class="sep">:</td><td><b class="' + statusClass + '">' + statusText + '</b></td></tr>' +
         '<tr><td class="label">Catatan</td><td class="sep">:</td><td>' + catatan + '</td></tr>' +
@@ -785,6 +780,23 @@
       pos += groups[i];
     }
     return parts.join('.');
+  }
+
+  // ---------- Pencarian & tampilan gagal muat ----------
+  function cocokCari(r, q){
+    if(!q) return true;
+    var hay = (r.nop+' '+formatNOP(r.nop)+' '+r.noLegalitas+' '+r.desa+' '+r.namaPetugas).toLowerCase();
+    if(hay.indexOf(q) !== -1) return true;
+    var qd = q.replace(/\./g, '');
+    return qd !== '' && hay.replace(/\./g, '').indexOf(qd) !== -1;
+  }
+
+  function tampilGagalMuat(bodyId, summaryId, pagingId, errEl, pesan){
+    errEl.textContent = pesan + ' \u2014 klik "Muat Ulang" untuk mencoba lagi.';
+    errEl.style.display = 'block';
+    document.getElementById(bodyId).innerHTML = '<tr><td colspan="8" class="empty">Data gagal dimuat.</td></tr>';
+    document.getElementById(summaryId).innerHTML = '';
+    document.getElementById(pagingId).innerHTML = '';
   }
 
   function esc(s){
